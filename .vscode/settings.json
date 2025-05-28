@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "malloc.h": "c",
+        "exception.h": "c",
+        "inttypes.h": "c",
+        "interrupt.h": "c",
+        "stdio.h": "c",
+        "synch.h": "c",
+        "filesys.h": "c"
+    }
+}
