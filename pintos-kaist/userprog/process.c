@@ -44,6 +44,7 @@ process_init (void) {
 	struct thread *current = thread_current ();
 }
 
+
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
  * The new thread may be scheduled (and may even exit)
  * before process_create_initd() returns. Returns the initd's
@@ -184,14 +185,12 @@ __do_fork (void *aux) {
 
     parent_if = &parent->parent_if; // process_fork에서 복사 해두었던 intr_frame
     /* 1. Read the cpu context to local stack. */
-    /* 1. 부모의 인터럽트 프레임을 읽어온다.(if_로 복사) */
     memcpy (&if_, parent_if, sizeof (struct intr_frame));
 
     if_.R.rax = 0; // fork 시스템 콜의 결과로 자식 프로세스는 0을 리턴해야하므로 0을 넣어준다.
 
     /* 2. Duplicate PT */
-    /* 2. 페이지 테이블을 복제한다. */
-    current->pml4 = pml4_create(); // 부모의 pte를 복사하기 위해 페이지 테이블을 생성한다.
+    current->pml4 = pml4_create(); 
     if (current->pml4 == NULL)
         goto error;
 
@@ -202,7 +201,7 @@ __do_fork (void *aux) {
         goto error;
 #else
     // "pml4_for_each" : Apply FUNC to each available pte entries including kernel's.
-    if (!pml4_for_each (parent->pml4, duplicate_pte, parent)) // "duplicate_pte" : 페이지 테이블을 복제하는 함수(부모 -> 자식)
+    if (!pml4_for_each (parent->pml4, duplicate_pte, parent)) 
         goto error;
 #endif
 
@@ -211,10 +210,7 @@ __do_fork (void *aux) {
      * TODO:       in include/filesys/file.h. Note that parent should not return
      * TODO:       from the fork() until this function successfully duplicates
      * TODO:       the resources of parent.*/
-    /*
-     * 파일 객체를 복제하려면 'file_duplicate'를 사용하라.
-     * 이 함수가 부모의 리소스를 성공적으로 복제할 때까지 부모 프로세스는 fork로 부터 리턴할 수 없다.
-     */
+
     if (parent->next_fd == FDCOUNT_LIMIT)
         goto error;
 
@@ -276,6 +272,10 @@ process_exec (void *f_name) {
 
 	/* We first kill the current context */
 	process_cleanup ();
+
+	#ifdef VM
+		supplemental_page_table_init(&thread_current() -> spt);
+	#endif
 
 	/* 커맨드 라인을 파싱한다. */
 	argument_parse(file_name, &argc, argv);
@@ -370,7 +370,8 @@ process_cleanup (void) {
 	struct thread *curr = thread_current ();
 
 #ifdef VM
-	supplemental_page_table_kill (&curr->spt);
+	if(!hash_empty(&curr->spt.spt_hash)) 
+		supplemental_page_table_kill (&curr->spt);;
 #endif
 
 	uint64_t *pml4;
@@ -455,7 +456,7 @@ struct ELF64_PHDR {
 #define ELF ELF64_hdr
 #define Phdr ELF64_PHDR
 
-static bool setup_stack (struct intr_frame *if_);
+bool setup_stack(struct intr_frame *if_);
 static bool validate_segment (const struct Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes,
@@ -685,7 +686,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a minimal stack by mapping a zeroed page at the USER_STACK */
-static bool
+bool
 setup_stack (struct intr_frame *if_) {
 	uint8_t *kpage;
 	bool success = false;
@@ -723,12 +724,27 @@ install_page (void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
-
-static bool
+bool
 lazy_load_segment (struct page *page, void *aux) {
-	/* TODO: Load the segment from the file */
-	/* TODO: This called when the first page fault occurs on address VA. */
-	/* TODO: VA is available when calling this function. */
+    if (page == NULL)
+        return false;
+
+    struct segment_aux *segment_aux = (struct segment_aux *) aux;
+    struct file *file = segment_aux->file;
+    off_t offset = segment_aux->offset;
+    size_t page_read_bytes = segment_aux->page_read_bytes;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+    file_seek(file, offset);
+
+    if (file_read(file, page->frame->kva, page_read_bytes) != (int) page_read_bytes) {
+        palloc_free_page(page->frame->kva);
+        return false;
+    }
+
+    memset((uint8_t *)page->frame->kva + page_read_bytes, 0, page_zero_bytes);
+
+    return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -760,9 +776,20 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		//void *aux = NULL;
+
+		struct segment_aux* segment_aux = (struct segment_aux *)malloc(sizeof(struct segment_aux));
+		
+		segment_aux->file = file; 
+		segment_aux->page_read_bytes = page_read_bytes; 
+		segment_aux->offset = ofs; 
+
+		ofs += page_read_bytes;
+
+
+
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+					writable, lazy_load_segment, segment_aux))
 			return false;
 
 		/* Advance. */
@@ -774,7 +801,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
-static bool
+bool
 setup_stack (struct intr_frame *if_) {
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
@@ -783,6 +810,15 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
+	if(vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1)){ 
+		success = vm_claim_page(stack_bottom); 
+
+		if (success) {
+			if_->rsp = USER_STACK; 
+			thread_current()->stack_bottom = stack_bottom; 
+	
+		}
+	}
 
 	return success;
 }

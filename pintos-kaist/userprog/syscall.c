@@ -8,6 +8,8 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 
+#include <string.h>
+
 // ✅
 #include "filesys/filesys.h" 	// filesys_* func
 #include "filesys/file.h"		// file_* func
@@ -16,6 +18,9 @@
 #include "threads/palloc.h" 	// palloc_get_page
 #include "lib/stdio.h" 			// predefined fd
 #include "threads/synch.h" 		// lock
+#include "vm/vm.h" 
+
+#include "userprog/process.h" 
 
 // ✅
 // pid_t는 프로세스 ID를 표현할 때 사용하는 타입
@@ -28,6 +33,9 @@ void syscall_handler (struct intr_frame *); // 시스템 콜 번호를 분석하
 struct lock filesys_lock;   
 // 파일 시스템 접근 시 동기화를 보장하기 위한 전역 락 변수
 // 파일을 열거나 읽고 쓸 때 여러 프로세스가 동시에 접근하면 안되기 때문에 이 락을 걸어야 한다.
+
+static void check_address(void *addr);
+static void check_buffer(void *buffer, unsigned size, bool writable);
 
 // ✅✅
 void get_argument(void *rsp, int argc, void *argv[]);
@@ -55,12 +63,19 @@ void close (int fd);
  * The syscall instruction works by reading the values from the the Model
  * Specific Register (MSR). For the details, see the manual. */
 
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset);
+void munmap (void *addr);
+
 
 // ✅
 static int fdt_add_fd(struct file *f); 
 static struct file *fdt_get_file(int fd); 
 static void fdt_remove_fd(int fd);
 static void check_string(const char* str);
+
+#ifndef VM
+static void check_address(void *addr);
+#endif
 
 // ✅
 #ifndef VM
@@ -144,6 +159,12 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	case SYS_CLOSE:
 		close (f->R.rdi);
 		break;
+	case SYS_MMAP:
+		f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+		break;
+	case SYS_MUNMAP:
+		munmap(f->R.rdi);
+		break;
 	default:
 		exit (-1);
 		break;
@@ -207,13 +228,6 @@ create(const char *file, unsigned initial_size){
     return result;
 }
 
-// ✅
-// bool 
-// remove(const char *file){
-// 	check_string(file);
-// 	//check_address(file); // ✅
-// 	return filesys_remove(file);
-// }
 
 // ✅
 bool remove(const char *file){
@@ -331,15 +345,36 @@ seek (int fd, unsigned position){
 }
 
 // ✅
-unsigned 
-tell (int fd){
+unsigned
+tell(int fd) {
     struct file *target_file = fdt_get_file(fd);
     if (fd <= STDOUT_FILENO || target_file == NULL)
-        return 0; // 원래 이 함수는 0을 리턴해야 안전
-    lock_acquire(&filesys_lock);      // 추가
+        return 0;   // 실패 시 0 리턴 (안전한 기본값)
+    lock_acquire(&filesys_lock);
     unsigned pos = file_tell(target_file);
-    lock_release(&filesys_lock);      // 추가
+    lock_release(&filesys_lock);
     return pos;
+}
+
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
+
+    if (addr == NULL || is_kernel_vaddr(addr) || is_kernel_vaddr(pg_round_up(addr)) || pg_round_down(addr) != addr || spt_find_page(&thread_current()->spt, addr) \
+		|| offset > PGSIZE \
+		|| (long) length <= 0) 
+        return NULL;
+
+
+    struct file *file = fdt_get_file(fd);
+
+
+    if (fd <= STDOUT_FILENO || file == NULL || file_length(file) == 0)
+        return NULL;
+
+    return do_mmap(addr, length, writable, file, offset);
+}
+
+void munmap (void *addr){
+	do_munmap(addr);
 }
 
 
@@ -356,20 +391,22 @@ close(int fd) {
     lock_release(&filesys_lock);
 }
 
-#ifndef VM
-static void check_address(void *addr) {
+static void
+check_address(void *addr) {
     struct thread *curr = thread_current();
-    if (addr == NULL || !is_user_vaddr(addr) || pml4_get_page(curr->pml4, addr) == NULL)
+    if (addr == NULL 
+		|| !is_user_vaddr(addr)
+        || pml4_get_page(curr->pml4, addr) == NULL)
         exit(-1);
 }
 
-static void check_buffer(void* buffer, unsigned size, bool writable) {
+static void
+check_buffer(void *buffer, unsigned size, bool writable) {
     for (unsigned i = 0; i < size; i++) {
-        check_address((char*)buffer + i);
-        // writable은 P2에선 체크 안 해도 됨
+        check_address((char *)buffer + i);
+        // VM 프로젝트를 진행 중이라면, writable 검사도 추가로 할 수 있습니다.
     }
 }
-#endif
 
 // ✅
 static int 
