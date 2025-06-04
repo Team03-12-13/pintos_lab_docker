@@ -267,7 +267,9 @@ process_exec (void *f_name) {
 
 	/* We first kill the current context */
 	process_cleanup ();
-
+	#ifdef VM
+		supplemental_page_table_init(&thread_current() -> spt);
+	#endif
 	// printf("%s\n", *file_name);
 
 	char *save_ptr;
@@ -776,6 +778,29 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+
+	if(page == NULL)
+		return false;
+
+	struct aux_info *load_aux = (struct aux_info *)aux;
+	struct file* file = load_aux->file;
+	size_t page_read_bytes = load_aux->page_read_bytes;
+	size_t page_zero_bytes = load_aux->page_zero_bytes;
+	file_seek(file, load_aux->offset);
+	uint8_t *kpage = page->frame->kva;
+		if (kpage == NULL)
+			return false;
+
+		/* Load this page. */
+		if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes) {
+			palloc_free_page (kpage);
+			return false;
+		}
+		memset (kpage + page_read_bytes, 0, page_zero_bytes);
+
+		/* Add the page to the process's address space. */
+
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -807,7 +832,12 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		struct aux_info* aux = (struct aux_info*)malloc(sizeof(struct aux_info));
+		aux->file = file;
+		aux->offset= ofs;
+		aux->page_read_bytes = page_read_bytes;
+		aux->page_zero_bytes = page_zero_bytes;
+		ofs += page_read_bytes;
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux))
 			return false;
@@ -830,6 +860,13 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
+
+	if(vm_alloc_page((VM_ANON|VM_MARKER_0), stack_bottom, true)){
+		if(vm_claim_page(stack_bottom)){
+			if_->rsp = USER_STACK;
+			success = true;
+		}
+	}
 
 	return success;
 }
