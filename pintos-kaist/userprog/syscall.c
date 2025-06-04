@@ -393,10 +393,15 @@ close(int fd) {
 
 static void
 check_address(void *addr) {
-    struct thread *curr = thread_current();
-    if (addr == NULL 
-		|| !is_user_vaddr(addr)
-        || pml4_get_page(curr->pml4, addr) == NULL)
+    // struct thread *curr = thread_current();
+    // if (addr == NULL 
+	// 	|| !is_user_vaddr(addr)
+    //     || pml4_get_page(curr->pml4, addr) == NULL)
+    //     exit(-1);
+
+	if (addr == NULL || !is_user_vaddr(addr))
+        exit(-1);
+    if (spt_find_page(&thread_current()->spt, addr) == NULL)
         exit(-1);
 }
 
