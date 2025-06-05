@@ -33,7 +33,7 @@ void syscall_handler (struct intr_frame *); // 시스템 콜 번호를 분석하
 struct lock filesys_lock;   
 // 파일 시스템 접근 시 동기화를 보장하기 위한 전역 락 변수
 // 파일을 열거나 읽고 쓸 때 여러 프로세스가 동시에 접근하면 안되기 때문에 이 락을 걸어야 한다.
-
+static void check_writable(void *addr);
 static void check_address(void *addr);
 static void check_buffer(void *buffer, unsigned size, bool writable);
 
@@ -277,7 +277,7 @@ filesize (int fd){
 int 
 read(int fd, void *buffer, unsigned size) {
     // 1. buffer 주소 유효성 체크 (항상 가장 먼저!)
-    check_address(buffer);
+    check_writable(buffer);
 
     // 2. STDIN (키보드 입력)
     if (fd == STDIN_FILENO) {
@@ -330,6 +330,8 @@ write(int fd, const void *buffer, unsigned size) {
     lock_release(&filesys_lock);
     return write_bytes;
 }
+
+
 
 
 
@@ -407,11 +409,30 @@ check_address(void *addr) {
 
 static void
 check_buffer(void *buffer, unsigned size, bool writable) {
-    for (unsigned i = 0; i < size; i++) {
-        check_address((char *)buffer + i);
-        // VM 프로젝트를 진행 중이라면, writable 검사도 추가로 할 수 있습니다.
+    for (unsigned i = 0; i < size; i += 8) {
+        struct page *page = spt_find_page(&thread_current()->spt, (uint8_t *)buffer + i);
+        if (!page || (writable && !page->writable)) {
+            exit(-1);
+        }
     }
 }
+
+
+
+
+static void
+check_writable(void *addr){
+    struct thread *curr = thread_current();
+    if (addr == NULL || !is_user_vaddr(addr))
+        exit(-1);
+    struct page *page = spt_find_page(&curr->spt, addr);
+    if (page == NULL)
+        exit(-1);
+    if (!page->writable)
+        exit(-1);
+}
+
+
 
 // ✅
 static int 

@@ -87,13 +87,34 @@ file_backed_swap_out (struct page *page) {
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
+// static void
+// file_backed_destroy (struct page *page) {
+// 	if (page->uninit.aux != NULL) {
+// 		free(page->uninit.aux);
+// 		page->uninit.aux = NULL;
+// 	}
+// }
+
 static void
 file_backed_destroy (struct page *page) {
+	// mmap한 페이지가 메모리에 존재했다면 (frame이 있었다면)
+	if (page->frame != NULL) {
+		struct segment_aux *segment_aux = (struct segment_aux *) page->uninit.aux;
+
+		// dirty 여부 확인 후 파일에 반영
+		if (pml4_is_dirty(thread_current()->pml4, page->va)) {
+			file_write_at(segment_aux->file, page->va, segment_aux->page_read_bytes, segment_aux->offset);
+			pml4_set_dirty(thread_current()->pml4, page->va, 0);
+		}
+	}
+
+	// aux 메모리 해제
 	if (page->uninit.aux != NULL) {
 		free(page->uninit.aux);
 		page->uninit.aux = NULL;
 	}
 }
+
 
 /* Do the mmap */
 // ✅
