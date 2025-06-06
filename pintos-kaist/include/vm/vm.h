@@ -71,18 +71,10 @@ struct frame {
 };
 
 
-// struct segment_aux {
-//     struct file *file;
-//     off_t offset;
-//     size_t page_read_bytes;
-// };
-
 struct segment_aux {
     struct file *file;
     off_t offset;
     size_t page_read_bytes;
-    size_t page_zero_bytes;
-    bool writable;
 };
 
 /* The function table for page operations.

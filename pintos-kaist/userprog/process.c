@@ -275,6 +275,7 @@ process_exec (void *f_name) {
 
 	#ifdef VM
 		supplemental_page_table_init(&thread_current() -> spt);
+		thread_current()->stack_bottom	= USER_STACK;
 	#endif
 
 	/* 커맨드 라인을 파싱한다. */

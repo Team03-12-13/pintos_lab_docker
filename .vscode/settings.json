@@ -19,6 +19,14 @@
         "intrinsic.h": "c",
         "vm.h": "c",
         "file.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "fstream": "c",
+        "iosfwd": "c",
+        "istream": "c",
+        "limits": "c",
+        "sstream": "c",
+        "streambuf": "c",
+        "*.inc": "c",
+        "unordered_map": "c"
     }
 }
