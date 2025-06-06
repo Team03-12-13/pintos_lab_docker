@@ -19,6 +19,7 @@ main (int argc UNUSED, char *argv[])
   size_t size;
 
   quiet = true;
+  
 
   CHECK ((handle = open (argv[1])) > 1, "open \"%s\"", argv[1]);
 

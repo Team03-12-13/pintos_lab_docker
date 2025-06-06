@@ -5,7 +5,7 @@ thread init
 Pintos booting with: 
 	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
 	ext_mem: 0x100000 ~ 0x27e0000 (Usable: 39,808 kB)
-Calibrating timer...  111,001,600 loops/s.
+Calibrating timer...  157,081,600 loops/s.
 hd0:0: detected 337 sector (168 kB) disk, model "QEMU HARDDISK", serial "QM00001"
 hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
 hd1:0: detected 4,119 sector (2 MB) disk, model "QEMU HARDDISK", serial "QM00003"
@@ -39,13 +39,13 @@ child-swap: exit(0)
 (swap-fork) end
 swap-fork: exit(0)
 Execution of 'swap-fork' complete.
-Timer: 529 ticks
-Thread: 288 idle ticks, 136 kernel ticks, 106 user ticks
+Timer: 293 ticks
+Thread: 133 idle ticks, 95 kernel ticks, 66 user ticks
 hd0:0: 0 reads, 0 writes
 hd0:1: 584 reads, 8276 writes
 hd1:0: 4119 reads, 0 writes
 hd1:1: 0 reads, 0 writes
-Console: 1422 characters output
+Console: 1420 characters output
 Keyboard: 0 keys pressed
 Exception: 0 page faults
 Powering off...

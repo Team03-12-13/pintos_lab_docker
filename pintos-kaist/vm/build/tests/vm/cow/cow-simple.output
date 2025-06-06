@@ -5,7 +5,7 @@ thread init
 Pintos booting with: 
 	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
 	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
-Calibrating timer...  130,867,200 loops/s.
+Calibrating timer...  157,081,600 loops/s.
 hd0:0: detected 337 sector (168 kB) disk, model "QEMU HARDDISK", serial "QM00001"
 hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
 hd1:0: detected 4,019 sector (1 MB) disk, model "QEMU HARDDISK", serial "QM00003"
@@ -25,8 +25,8 @@ child: exit(1)
 (cow-simple) end
 cow-simple: exit(0)
 Execution of 'cow-simple' complete.
-Timer: 393 ticks
-Thread: 255 idle ticks, 122 kernel ticks, 17 user ticks
+Timer: 285 ticks
+Thread: 153 idle ticks, 107 kernel ticks, 26 user ticks
 hd0:0: 0 reads, 0 writes
 hd0:1: 90 reads, 8066 writes
 hd1:0: 4019 reads, 0 writes

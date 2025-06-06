@@ -27,6 +27,11 @@
         "sstream": "c",
         "streambuf": "c",
         "*.inc": "c",
-        "unordered_map": "c"
+        "unordered_map": "c",
+        "array": "c",
+        "ostream": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c"
     }
 }

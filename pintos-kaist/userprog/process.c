@@ -282,7 +282,8 @@ process_exec (void *f_name) {
 	argument_parse(file_name, &argc, argv);
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	//success = load (file_name, &_if);
+	success = load (argv[0], &_if);
 
 
 	/* If load failed, quit. */
@@ -706,6 +707,7 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 
+
 /* Adds a mapping from user virtual address UPAGE to kernel
  * virtual address KPAGE to the page table.
  * If WRITABLE is true, the user process may modify the page;
@@ -837,41 +839,78 @@ static void argument_parse(char *file_name, int *argc_ptr, char *argv[]){
 	for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
         argv[(*argc_ptr)++] = token;
 
-	argv[*argc_ptr] = token;
+	//argv[*argc_ptr] = token;
+	argv[*argc_ptr] = NULL; 
 }
 
 // ✅
 /* argument_stack: memcpy/memset의 첫 인자를 (void*)로 캐스트하고,
    스택 얼라인, argv 포인터 배열, fake return address까지 모두 처리 */
+// static void argument_stack(int argc, char **argv, struct intr_frame *if_){
+// 	char *argv_addr[128];
+// 	for (int i = argc - 1; i >= 0; i--){ // argument
+// 		if_->rsp -= strlen(argv[i]) + 1;
+// 		// if_->rsp = argv[i];
+// 		memcpy(if_->rsp, argv[i], strlen(argv[i]) + 1); // *(if_->rsp) = *argv[1]; 'if_->rsp'의 크기를 몰라서 이렇게 하면 안됨
+// 		argv_addr[i] = if_->rsp;
+// 	}
+
+// 	while (if_->rsp % 8 > 0){ // word-aline padding
+// 		if_->rsp -= 1;
+// 		memset(if_->rsp, 0, 1);
+// 	}
+	
+// 	if_->rsp -= sizeof(char *);	
+// 	memset(if_->rsp, 0, sizeof(char *));
+
+// 	for (int i = argc - 1; i >= 0; i--){
+// 		if_->rsp -= sizeof(char *);
+// 		// if_->rsp = argv_addr[i];
+// 		memcpy(if_->rsp, &argv_addr[i], sizeof(char *));
+// 	}
+	
+// 	if_->rsp -= sizeof(char *);
+// 	memset(if_->rsp, 0, sizeof(char *));
+
+// 	if_->R.rdi = argc;
+// 	if_->R.rsi = if_->rsp + 8; 
+// }
+
+
+
 static void argument_stack(int argc, char **argv, struct intr_frame *if_){
-	char *argv_addr[128];
-	for (int i = argc - 1; i >= 0; i--){ // argument
-		if_->rsp -= strlen(argv[i]) + 1;
-		// if_->rsp = argv[i];
-		memcpy(if_->rsp, argv[i], strlen(argv[i]) + 1); // *(if_->rsp) = *argv[1]; 'if_->rsp'의 크기를 몰라서 이렇게 하면 안됨
-		argv_addr[i] = if_->rsp;
-	}
+    char *argv_addr[128];
+    for (int i = argc - 1; i >= 0; i--){ // argument
+        if_->rsp -= strlen(argv[i]) + 1;
+        memcpy(if_->rsp, argv[i], strlen(argv[i]) + 1);
+        argv_addr[i] = if_->rsp;
+    }
 
-	while (if_->rsp % 8 > 0){ // word-aline padding
-		if_->rsp -= 1;
-		memset(if_->rsp, 0, 1);
-	}
-	
-	if_->rsp -= sizeof(char *);	
-	memset(if_->rsp, 0, sizeof(char *));
+    // word-align to 8
+    while (if_->rsp % 8 != 0){
+        if_->rsp -= 1;
+        memset(if_->rsp, 0, 1);
+    }
 
-	for (int i = argc - 1; i >= 0; i--){
-		if_->rsp -= sizeof(char *);
-		// if_->rsp = argv_addr[i];
-		memcpy(if_->rsp, &argv_addr[i], sizeof(char *));
-	}
-	
-	if_->rsp -= sizeof(char *);
-	memset(if_->rsp, 0, sizeof(char *));
+    // argv[argc] = NULL
+    if_->rsp -= sizeof(char *);
+    memset(if_->rsp, 0, sizeof(char *));
 
-	if_->R.rdi = argc;
-	if_->R.rsi = if_->rsp + 8; 
+    // argv 포인터 저장
+    for (int i = argc - 1; i >= 0; i--){
+        if_->rsp -= sizeof(char *);
+        memcpy(if_->rsp, &argv_addr[i], sizeof(char *));
+    }
+
+    // argc, argv
+    if_->R.rdi = argc;
+    if_->R.rsi = if_->rsp;   // **argv 포인터 배열의 첫 주소**
+
+    // 참고: rdx, rcx 등은 필요없음 (x86-64 System V ABI)
 }
+
+
+
 
 // ✅
 struct thread *get_child_process(int pid){

@@ -4,6 +4,8 @@
 #include "threads/palloc.h"
 #include <hash.h> // ✅
 
+
+
 enum vm_type {
 	/* page not initialized */
 	VM_UNINIT = 0,
@@ -23,6 +25,7 @@ enum vm_type {
 
 	/* DO NOT EXCEED THIS VALUE. */
 	VM_MARKER_END = (1 << 31),
+
 };
 
 #include "vm/uninit.h"

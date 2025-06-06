@@ -419,7 +419,6 @@ check_buffer(void *buffer, unsigned size, bool writable) {
 
 
 
-
 static void
 check_writable(void *addr){
     struct thread *curr = thread_current();
@@ -452,6 +451,8 @@ fdt_add_fd(struct file *f) {
 	fdt[curr->next_fd] = f; // fdt에 해당 fd 새로 넣어줌
 	return curr->next_fd;
 }
+
+
 
 // ✅
 static struct file *
